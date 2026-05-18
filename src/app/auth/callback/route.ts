@@ -1,5 +1,6 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { safeNext } from "@/lib/auth/implicit-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
   const errorParam = requestUrl.searchParams.get("error");
   const errorDescription = requestUrl.searchParams.get("error_description");
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
-  const safeNext = next.startsWith("/") ? next : "/dashboard";
+  const safeRedirectPath = safeNext(next);
 
   if (errorParam) {
     const loginUrl = new URL("/login", requestUrl.origin);
@@ -18,9 +19,8 @@ export async function GET(request: Request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const supabase = await createSupabaseServerClient();
-
   if (tokenHash && type) {
+    const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
 
     if (error) {
@@ -29,18 +29,17 @@ export async function GET(request: Request) {
       return NextResponse.redirect(loginUrl);
     }
 
-    return NextResponse.redirect(new URL(safeNext, requestUrl.origin));
+    return NextResponse.redirect(new URL(safeRedirectPath, requestUrl.origin));
   }
 
   if (!code) {
     const loginUrl = new URL("/login", requestUrl.origin);
-    loginUrl.searchParams.set(
-      "error",
-      "Missing auth code. Open the email link in the same browser you used to request it."
-    );
+    loginUrl.searchParams.set("authRecovery", "1");
+    loginUrl.searchParams.set("next", safeRedirectPath);
     return NextResponse.redirect(loginUrl);
   }
 
+  const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
@@ -54,5 +53,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.redirect(new URL(safeNext, requestUrl.origin));
+  return NextResponse.redirect(new URL(safeRedirectPath, requestUrl.origin));
 }

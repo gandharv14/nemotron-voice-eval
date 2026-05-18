@@ -1,8 +1,9 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { safeNext } from "@/lib/auth/implicit-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get("next") ?? "/dashboard";
   const errorParam = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
-  const safeNext = next.startsWith("/") ? next : "/dashboard";
+  const safeRedirectPath = safeNext(next);
 
   if (errorParam) {
     const loginUrl = new URL("/login", origin);
@@ -18,9 +19,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const supabase = await createSupabaseServerClient();
-
   if (token_hash && type) {
+    const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
 
     if (error) {
@@ -29,10 +29,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    return NextResponse.redirect(new URL(safeNext, origin));
+    return NextResponse.redirect(new URL(safeRedirectPath, origin));
   }
 
   if (code) {
+    const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (error) {
@@ -46,15 +47,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    return NextResponse.redirect(new URL(safeNext, origin));
+    return NextResponse.redirect(new URL(safeRedirectPath, origin));
   }
 
-  if (!token_hash || !type) {
-    const loginUrl = new URL("/login", origin);
-    loginUrl.searchParams.set(
-      "error",
-      "Missing or invalid confirmation link. Request a new magic link and try again."
-    );
-    return NextResponse.redirect(loginUrl);
-  }
+  const loginUrl = new URL("/login", origin);
+  loginUrl.searchParams.set("authRecovery", "1");
+  loginUrl.searchParams.set("next", safeRedirectPath);
+  return NextResponse.redirect(loginUrl);
 }

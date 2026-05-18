@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { parseImplicitSessionHash, safeNext } from "@/lib/auth/implicit-session";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type MagicLinkResponse = {
@@ -14,15 +15,64 @@ export function LoginForm({ error }: { error?: string } = {}) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(error ?? null);
   const [loading, setLoading] = useState(false);
+  const [recoveringSession, setRecoveringSession] = useState(false);
   const [cooldown, setCooldown] = useState<{ email: string; until: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const supabase = createSupabaseBrowserClient();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const googleAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === "true";
   const normalizedEmail = email.trim().toLowerCase();
   const cooldownApplies = cooldown?.email === normalizedEmail;
   const cooldownRemaining = cooldownApplies
     ? Math.max(0, Math.ceil((cooldown.until - now) / 1000))
     : 0;
+  const submitLabel = recoveringSession
+    ? "Signing in..."
+    : loading
+      ? "Sending..."
+      : cooldownRemaining > 0
+        ? `Resend in ${formatCooldown(cooldownRemaining)}`
+        : "Send magic link";
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const fallbackNext = safeNext(query.get("next"));
+    const parsedSession = parseImplicitSessionHash(window.location.hash, fallbackNext);
+
+    if (parsedSession.type === "empty") {
+      if (query.get("authRecovery") === "1" && !error) {
+        setMessage(
+          "This email link did not include a usable sign-in token. Please request a fresh magic link and open the newest email."
+        );
+      }
+      return;
+    }
+
+    if (parsedSession.type === "error") {
+      setMessage(parsedSession.message);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      return;
+    }
+
+    setRecoveringSession(true);
+    setMessage("Completing sign-in...");
+
+    void supabase.auth
+      .setSession({
+        access_token: parsedSession.accessToken,
+        refresh_token: parsedSession.refreshToken
+      })
+      .then(({ error }) => {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+        if (error) {
+          setRecoveringSession(false);
+          setMessage(error.message);
+          return;
+        }
+
+        window.location.assign(parsedSession.next);
+      });
+  }, [error, supabase]);
 
   useEffect(() => {
     if (!cooldown) {
@@ -106,12 +156,12 @@ export function LoginForm({ error }: { error?: string } = {}) {
             required
           />
         </label>
-        <button className="button" disabled={loading || cooldownRemaining > 0} type="submit">
-          {loading
-            ? "Sending..."
-            : cooldownRemaining > 0
-              ? `Resend in ${formatCooldown(cooldownRemaining)}`
-              : "Send magic link"}
+        <button
+          className="button"
+          disabled={recoveringSession || loading || cooldownRemaining > 0}
+          type="submit"
+        >
+          {submitLabel}
         </button>
       </form>
       {googleAuthEnabled ? (

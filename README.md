@@ -101,6 +101,11 @@ per-email cooldown in `auth_magic_link_cooldowns` before calling Supabase. If
 Supabase returns `429`, the app stores a longer retry window so repeated clicks
 do not keep resetting the provider-side rate limit.
 
+The callback routes accept both Supabase `code` links and `token_hash` links.
+If an older implicit-flow email preserves `access_token` and `refresh_token` in
+the URL fragment, `/login` completes the session client-side instead of showing
+a missing-code error.
+
 ## Scheduler Tests
 
 ```bash
