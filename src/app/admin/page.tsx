@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { AdminFairness } from "@/components/dashboard/AdminFairness";
 import { AdminManagement } from "@/components/dashboard/AdminManagement";
 import { AdminRuns } from "@/components/dashboard/AdminRuns";
 import { isAdminEmail } from "@/lib/api/auth";
@@ -31,6 +32,7 @@ export default async function AdminPage() {
       </nav>
       <div className="grid">
         <AdminRuns />
+        <AdminFairness />
         <AdminManagement />
       </div>
     </main>

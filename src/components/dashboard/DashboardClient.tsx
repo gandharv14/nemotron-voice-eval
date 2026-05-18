@@ -8,7 +8,6 @@ import { UtilizationChart } from "./UtilizationChart";
 
 interface Profile {
   tz: string;
-  fairness_score: number;
 }
 
 interface RequestRow {
@@ -49,8 +48,8 @@ export function DashboardClient({ initialProfile }: { initialProfile: Profile })
     async function refreshProfile() {
       const response = await fetch("/api/profile");
       const body = await response.json();
-      if (response.ok) {
-        setProfile(body.profile);
+      if (response.ok && body.profile) {
+        setProfile({ tz: body.profile.tz });
       }
     }
 
@@ -77,22 +76,12 @@ export function DashboardClient({ initialProfile }: { initialProfile: Profile })
 
   return (
     <div className="stack">
-      <div className="grid two">
-        <ProfileTimezoneForm initialTimezone={profile.tz} />
-        <div className="card stack">
-          <h2>Fairness score</h2>
-          <p className="muted">
-            Higher scores indicate more rejected or late-canceled minutes and
-            get priority as a tiebreaker.
-          </p>
-          <strong>{profile.fairness_score}</strong>
-          {message ? <p className="muted">{message}</p> : null}
-        </div>
-      </div>
+      <ProfileTimezoneForm initialTimezone={profile.tz} />
       <div className="grid two">
         <RequestForm timezone={profile.tz} onCreated={refreshSchedule} />
         <UtilizationChart />
       </div>
+      {message ? <p className="muted">{message}</p> : null}
       <ScheduleCalendar
         requests={requests}
         sessions={sessions}

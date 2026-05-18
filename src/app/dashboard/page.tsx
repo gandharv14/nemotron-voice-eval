@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   const admin = createSupabaseAdminClient();
   const { data: profile } = await admin
     .from("profiles")
-    .select("tz, fairness_score")
+    .select("tz")
     .eq("id", user.id)
     .single();
 
@@ -45,8 +45,7 @@ export default async function DashboardPage() {
       </nav>
       <DashboardClient
         initialProfile={{
-          tz: profile?.tz ?? "UTC",
-          fairness_score: profile?.fairness_score ?? 0
+          tz: profile?.tz ?? "UTC"
         }}
       />
     </main>
