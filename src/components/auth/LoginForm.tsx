@@ -3,11 +3,12 @@
 import { FormEvent, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-export function LoginForm() {
+export function LoginForm({ error }: { error?: string } = {}) {
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(error ?? null);
   const [loading, setLoading] = useState(false);
   const supabase = createSupabaseBrowserClient();
+  const googleAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === "true";
 
   async function signInWithMagicLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,7 +23,20 @@ export function LoginForm() {
     });
 
     setLoading(false);
-    setMessage(error ? error.message : "Check your email for a magic link.");
+
+    if (!error) {
+      setMessage("Check your email for a magic link.");
+      return;
+    }
+
+    if (error.status === 429 || /rate limit/i.test(error.message)) {
+      setMessage(
+        "Too many magic-link requests. Wait a few minutes and try again, or use a different email address."
+      );
+      return;
+    }
+
+    setMessage(error.message);
   }
 
   async function signInWithGoogle() {
@@ -52,9 +66,11 @@ export function LoginForm() {
           {loading ? "Sending..." : "Send magic link"}
         </button>
       </form>
-      <button className="button secondary" type="button" onClick={signInWithGoogle}>
-        Continue with Google
-      </button>
+      {googleAuthEnabled ? (
+        <button className="button secondary" type="button" onClick={signInWithGoogle}>
+          Continue with Google
+        </button>
+      ) : null}
       {message ? <p className="muted">{message}</p> : null}
     </div>
   );

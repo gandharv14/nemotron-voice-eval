@@ -8,7 +8,7 @@ export async function GET() {
     return response;
   }
 
-  if (!isAdminEmail(user.email)) {
+  if (!(await isAdminEmail(user.email))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

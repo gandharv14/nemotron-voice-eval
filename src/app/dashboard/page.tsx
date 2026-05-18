@@ -25,6 +25,8 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
+  const userIsAdmin = await isAdminEmail(user.email);
+
   return (
     <main className="app-shell">
       <nav className="nav">
@@ -33,7 +35,7 @@ export default async function DashboardPage() {
           <p className="muted">{user.email}</p>
         </div>
         <div className="nav-links">
-          {isAdminEmail(user.email) ? (
+          {userIsAdmin ? (
             <Link className="button secondary" href="/admin">
               Admin
             </Link>

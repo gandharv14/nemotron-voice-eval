@@ -15,14 +15,17 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  if (!isAdminEmail(user.email)) {
+  if (!(await isAdminEmail(user.email))) {
     redirect("/dashboard");
   }
 
   return (
     <main className="app-shell">
       <nav className="nav">
-        <Link href="/dashboard">Back to dashboard</Link>
+        <Link className="button secondary" href="/dashboard" aria-label="Back to scheduling dashboard">
+          <span aria-hidden="true" style={{ marginRight: 6 }}>&larr;</span>
+          Back to scheduling
+        </Link>
         <SignOutButton />
       </nav>
       <AdminRuns />

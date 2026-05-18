@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user }
@@ -12,9 +16,11 @@ export default async function LoginPage() {
     redirect("/dashboard");
   }
 
+  const { error } = await searchParams;
+
   return (
     <main className="app-shell">
-      <LoginForm />
+      <LoginForm error={error} />
     </main>
   );
 }
