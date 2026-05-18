@@ -3,33 +3,29 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-const MAGIC_LINK_COOLDOWN_SECONDS = 60;
-const RATE_LIMIT_COOLDOWN_SECONDS = 5 * 60;
-const MAGIC_LINK_COOLDOWN_KEY = "gpu-scheduler-magic-link-cooldown-until";
+type MagicLinkResponse = {
+  message?: string;
+  error?: string;
+  retryAfterSeconds?: number;
+  retryAt?: string;
+};
 
 export function LoginForm({ error }: { error?: string } = {}) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(error ?? null);
   const [loading, setLoading] = useState(false);
-  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldown, setCooldown] = useState<{ email: string; until: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const supabase = createSupabaseBrowserClient();
   const googleAuthEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === "true";
-  const cooldownRemaining = cooldownUntil
-    ? Math.max(0, Math.ceil((cooldownUntil - now) / 1000))
+  const normalizedEmail = email.trim().toLowerCase();
+  const cooldownApplies = cooldown?.email === normalizedEmail;
+  const cooldownRemaining = cooldownApplies
+    ? Math.max(0, Math.ceil((cooldown.until - now) / 1000))
     : 0;
 
   useEffect(() => {
-    const storedCooldown = window.localStorage.getItem(MAGIC_LINK_COOLDOWN_KEY);
-    const parsedCooldown = storedCooldown ? Number(storedCooldown) : NaN;
-
-    if (Number.isFinite(parsedCooldown) && parsedCooldown > Date.now()) {
-      setCooldownUntil(parsedCooldown);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!cooldownUntil) {
+    if (!cooldown) {
       return;
     }
 
@@ -38,14 +34,13 @@ export function LoginForm({ error }: { error?: string } = {}) {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [cooldownUntil]);
+  }, [cooldown]);
 
   useEffect(() => {
-    if (cooldownUntil && cooldownUntil <= now) {
-      setCooldownUntil(null);
-      window.localStorage.removeItem(MAGIC_LINK_COOLDOWN_KEY);
+    if (cooldown && cooldown.until <= now) {
+      setCooldown(null);
     }
-  }, [cooldownUntil, now]);
+  }, [cooldown, now]);
 
   async function signInWithMagicLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,39 +52,34 @@ export function LoginForm({ error }: { error?: string } = {}) {
       return;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
     setEmail(normalizedEmail);
     setLoading(true);
     setMessage(null);
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        // The callback supports Supabase's default PKCE links and our custom
-        // token_hash template, so hosted template drift does not break sign-in.
-        emailRedirectTo: `${window.location.origin}/auth/callback`
-      }
+    const response = await fetch("/api/auth/magic-link", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ email: normalizedEmail })
     });
+    const payload = await response.json().catch(() => ({})) as MagicLinkResponse;
 
     setLoading(false);
 
-    if (!error) {
-      startCooldown(MAGIC_LINK_COOLDOWN_SECONDS);
+    if (payload.retryAfterSeconds || payload.retryAt) {
+      startCooldown(normalizedEmail, payload.retryAfterSeconds ?? 0, payload.retryAt);
+    }
+
+    if (response.ok) {
       setMessage(
-        "Magic link sent. Check your inbox and spam folder; if it does not arrive, wait before requesting another link."
+        payload.message ??
+          "Magic link sent. Check your inbox and spam folder before requesting another link."
       );
       return;
     }
 
-    if (error.status === 429 || /rate limit/i.test(error.message)) {
-      startCooldown(RATE_LIMIT_COOLDOWN_SECONDS);
-      setMessage(
-        "Too many magic-link requests. Wait a few minutes and try again, or use a different email address."
-      );
-      return;
-    }
-
-    setMessage(error.message);
+    setMessage(payload.error ?? "Could not send a magic link. Please try again shortly.");
   }
 
   async function signInWithGoogle() {
@@ -133,11 +123,12 @@ export function LoginForm({ error }: { error?: string } = {}) {
     </div>
   );
 
-  function startCooldown(seconds: number) {
-    const until = Date.now() + seconds * 1000;
+  function startCooldown(email: string, seconds: number, retryAt?: string) {
+    const retryAtTime = retryAt ? Date.parse(retryAt) : NaN;
+    const until = Number.isFinite(retryAtTime) ? retryAtTime : Date.now() + seconds * 1000;
+
     setNow(Date.now());
-    setCooldownUntil(until);
-    window.localStorage.setItem(MAGIC_LINK_COOLDOWN_KEY, String(until));
+    setCooldown({ email, until });
   }
 }
 

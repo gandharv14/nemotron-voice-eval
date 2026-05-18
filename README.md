@@ -96,6 +96,11 @@ ever sees an email. Use a real sender such as Resend, Postmark, SendGrid, or an
 approved company SMTP service, then send one test magic link from Supabase's
 Auth logs or from the app.
 
+Magic-link requests are sent through `/api/auth/magic-link`, which records a
+per-email cooldown in `auth_magic_link_cooldowns` before calling Supabase. If
+Supabase returns `429`, the app stores a longer retry window so repeated clicks
+do not keep resetting the provider-side rate limit.
+
 ## Scheduler Tests
 
 ```bash
