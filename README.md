@@ -46,7 +46,55 @@ Open `http://localhost:3000`. Configure Supabase Auth redirect URLs to include:
 
 ```text
 http://localhost:3000/auth/callback
+http://localhost:3000/auth/confirm
 ```
+
+## Supabase Auth Email Templates (REQUIRED)
+
+Magic-link sign-in uses the `verifyOtp` + `token_hash` flow (not PKCE `code`).
+This avoids the "PKCE code verifier not found in storage" error that happens
+when email scanners pre-fetch the link or the user opens the email in a
+different browser/device.
+
+For **local Supabase** (`supabase start`), the templates in
+`supabase/templates/` are already wired up via `supabase/config.toml`.
+
+For the **hosted Supabase project**, update the templates in
+Authentication → Email Templates in the dashboard:
+
+`Magic Link` template:
+
+```html
+<h2>Your magic link</h2>
+<p>Click the link below to sign in.</p>
+<p>
+  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink&next=/dashboard">Sign in</a>
+</p>
+```
+
+`Confirm signup` template:
+
+```html
+<h2>Confirm your sign up</h2>
+<p>Click the link below to confirm your email.</p>
+<p>
+  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=signup&next=/dashboard">Confirm your email</a>
+</p>
+```
+
+Add both callback URLs to Auth → URL Configuration → Redirect URLs:
+
+```text
+https://<your-domain>/auth/callback
+https://<your-domain>/auth/confirm
+```
+
+For production, configure a custom SMTP provider under Authentication → SMTP
+Settings. Supabase's built-in email sender has low rate limits and weaker
+deliverability; repeated magic-link attempts can return `429` before the user
+ever sees an email. Use a real sender such as Resend, Postmark, SendGrid, or an
+approved company SMTP service, then send one test magic link from Supabase's
+Auth logs or from the app.
 
 ## Scheduler Tests
 

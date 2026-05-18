@@ -1,0 +1,10 @@
+<h2>Your magic link</h2>
+
+<p>Click the link below to sign in. This link only works in the browser where you requested it and expires shortly.</p>
+
+<p>
+  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink&next=/dashboard">Sign in</a>
+</p>
+
+<p>If the link does not work, copy and paste this URL into your browser:</p>
+<p>{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink&next=/dashboard</p>
