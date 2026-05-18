@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { AdminManagement } from "@/components/dashboard/AdminManagement";
 import { AdminRuns } from "@/components/dashboard/AdminRuns";
 import { isAdminEmail } from "@/lib/api/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -28,7 +29,10 @@ export default async function AdminPage() {
         </Link>
         <SignOutButton />
       </nav>
-      <AdminRuns />
+      <div className="grid">
+        <AdminRuns />
+        <AdminManagement />
+      </div>
     </main>
   );
 }
